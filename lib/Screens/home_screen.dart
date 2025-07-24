@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'notifications.dart';
 import 'settings_screen.dart';
 import 'status_screen.dart';
 import 'predict_screen.dart';
@@ -22,6 +23,16 @@ class HomeScreen extends StatelessWidget {
             const _WelcomeSection(),
             const SizedBox(height: 48),
             _MainButtons(onNavigate: _navigateTo),
+            const SizedBox(height: 32),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => NotificationExample()),
+                );
+              },
+              child: const Text('تحديث الإشعارات'),
+            ),
             const Spacer(),
             const _SignatureFooter(),
           ],
@@ -51,7 +62,7 @@ class _HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
           onPressed: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) =>  SettingsScreen()),
+              MaterialPageRoute(builder: (_) => SettingsScreen()),
             );
           },
         ),
@@ -92,7 +103,6 @@ class _WelcomeSection extends StatelessWidget {
     );
   }
 }
-
 
 // ───────────────────────────────────────── Buttons Section
 class _MainButtons extends StatelessWidget {
@@ -172,6 +182,7 @@ class _SignatureFooter extends StatelessWidget {
       throw Exception('تعذر فتح الرابط');
     }
   }
+
   Future<void> _launchWhatsapp() async {
     final Uri url = Uri.parse('https://wa.me/+201553151405');
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
@@ -198,12 +209,15 @@ class _SignatureFooter extends StatelessWidget {
             const SizedBox(width: 16),
             GestureDetector(
               onTap: _launchFacebook,
-              child: const Icon(Icons.facebook, size: 22, color: Colors.blueAccent),
+              child: const Icon(
+                Icons.facebook,
+                size: 22,
+                color: Colors.blueAccent,
+              ),
             ),
           ],
         ),
       ],
     );
   }
-
 }

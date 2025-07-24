@@ -43,7 +43,7 @@ class SettingsManager {
         endDate = _defaultEndDate;
 
         if (endDate != null) {
-          await prefs.setString(_endDateKey, endDate!.toIso8601String());
+          await prefs.setString(_endDateKey, endDate.toIso8601String());
         } else {
           await prefs.remove(_endDateKey); // أو تجاهل الحفظ لو null
         }
