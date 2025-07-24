@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../utils/settings_manager.dart';
 import 'package:intl/intl.dart';
 
+import 'notifications.dart';
+
 class SettingsScreen extends StatefulWidget {
   @override
   _SettingsScreenState createState() => _SettingsScreenState();
@@ -69,7 +71,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (!SettingsManager.validateSettings(_workDays, _offDays)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('عدد الأيام يجب أن يكون أكبر من 0 وأقل من أو يساوي 365')),
+        const SnackBar(
+          content: Text(
+            'عدد الأيام يجب أن يكون أكبر من 0 وأقل من أو يساوي 365',
+          ),
+        ),
       );
       return;
     }
@@ -82,14 +88,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم حفظ الإعدادات بنجاح')),
+      // ✅ جدولة الإشعار بعد الحفظ
+      await NotificationService.scheduleEndOfOffNotification(
+        id: 100,
+        startDate: _startDate!,
+        workDays: _workDays,
+        offDays: _offDays,
+        title: "استعد!",
+        body: "بكرة شغل! جهز دماغك من دلوقتي 💼",
       );
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('تم حفظ الإعدادات بنجاح')));
       Navigator.pop(context);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('حدث خطأ أثناء الحفظ')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('حدث خطأ أثناء الحفظ')));
     }
   }
 
@@ -116,10 +132,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("📌 الإعدادات الحالية:", style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text(
+                      "📌 الإعدادات الحالية:",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                     const SizedBox(height: 8),
-                    Text("تاريخ البداية: ${_startDate != null ? dateFormat.format(_startDate!) : 'غير محدد'}"),
-                    Text("تاريخ الانتهاء: ${_endDate != null ? dateFormat.format(_endDate!) : 'غير محدد'}"),
+                    Text(
+                      "تاريخ البداية: ${_startDate != null ? dateFormat.format(_startDate!) : 'غير محدد'}",
+                    ),
+                    Text(
+                      "تاريخ الانتهاء: ${_endDate != null ? dateFormat.format(_endDate!) : 'غير محدد'}",
+                    ),
                     Text("عدد أيام الشغل: $_workDays"),
                     Text("عدد أيام الإجازة: $_offDays"),
                   ],
@@ -152,7 +175,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               decoration: const InputDecoration(labelText: 'عدد أيام الشغل'),
               keyboardType: TextInputType.number,
               controller: _workDaysController,
-              onChanged: (value) => _workDays = int.tryParse(value) ?? _workDays,
+              onChanged: (value) =>
+                  _workDays = int.tryParse(value) ?? _workDays,
             ),
             const SizedBox(height: 10),
 
@@ -164,10 +188,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 20),
 
-            ElevatedButton(
-              onPressed: _saveSettings,
-              child: const Text('حفظ'),
-            ),
+            ElevatedButton(onPressed: _saveSettings, child: const Text('حفظ')),
           ],
         ),
       ),

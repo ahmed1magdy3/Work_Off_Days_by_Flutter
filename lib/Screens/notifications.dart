@@ -1,79 +1,123 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:timezone/data/latest.dart' as tz;
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io';
+import '../utils/settings_manager.dart';
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _notifications =
-  FlutterLocalNotificationsPlugin();
+      FlutterLocalNotificationsPlugin();
 
-  // تهيئة الإشعارات للأندرويد فقط
   static Future<void> initialize() async {
-    // تهيئة التوقيت المحلي
     tz.initializeTimeZones();
 
-    // إعدادات الأندرويد فقط
-    const AndroidInitializationSettings androidSettings =
-    AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    // الإعدادات العامة للأندرويد
-    const InitializationSettings settings = InitializationSettings(
-      android: androidSettings,
-    );
+    const initSettings = InitializationSettings(android: androidInit);
 
-    // تهيئة الإشعارات
     await _notifications.initialize(
-      settings,
+      initSettings,
       onDidReceiveNotificationResponse: onNotificationTap,
       onDidReceiveBackgroundNotificationResponse: onNotificationTap,
     );
 
-    // طلب الصلاحيات
-    await requestPermissions();
+    await requestAllPermissions();
+    await createNotificationChannels();
   }
 
-  // طلب صلاحيات الإشعارات للأندرويد
-  static Future<void> requestPermissions() async {
-    // للأندرويد 13+
-    await Permission.notification.request();
+  static Future<void> requestAllPermissions() async {
+    if (Platform.isAndroid) {
+      await Permission.notification.request();
+      await Permission.scheduleExactAlarm.request();
+      await Permission.ignoreBatteryOptimizations.request();
+      await checkPermissionStatus();
+    }
   }
 
-  // التعامل مع النقر على الإشعار
+  static Future<void> checkPermissionStatus() async {
+    final notificationStatus = await Permission.notification.status;
+    final alarmStatus = await Permission.scheduleExactAlarm.status;
+    final batteryStatus = await Permission.ignoreBatteryOptimizations.status;
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setBool(
+      'permissions_granted',
+      notificationStatus.isGranted && alarmStatus.isGranted,
+    );
+  }
+
+  static Future<void> createNotificationChannels() async {
+    if (Platform.isAndroid) {
+      const instantChannel = AndroidNotificationChannel(
+        'instant_channel',
+        'الإشعارات الفورية',
+        description: 'إشعارات تظهر فورًا',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+      );
+
+      const scheduledChannel = AndroidNotificationChannel(
+        'scheduled_channel',
+        'الإشعارات المجدولة',
+        description: 'إشعارات يتم إرسالها في وقت محدد',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+        enableLights: true,
+      );
+
+      const dailyChannel = AndroidNotificationChannel(
+        'daily_channel',
+        'الإشعارات اليومية',
+        description: 'إشعارات يومية في وقت معين',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+      );
+
+      final plugin = _notifications
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+
+      if (plugin != null) {
+        await plugin.createNotificationChannel(instantChannel);
+        await plugin.createNotificationChannel(scheduledChannel);
+        await plugin.createNotificationChannel(dailyChannel);
+      }
+    }
+  }
+
   static void onNotificationTap(NotificationResponse notificationResponse) {
-    print('تم النقر على الإشعار: ${notificationResponse.payload}');
-    // هنا يمكنك إضافة المنطق الخاص بك
+    print('Notification Tapped: ${notificationResponse.payload}');
   }
 
-  // إرسال إشعار فوري
   static Future<void> showInstantNotification({
     required int id,
     required String title,
     required String body,
     String? payload,
   }) async {
-    const NotificationDetails notificationDetails = NotificationDetails(
+    const details = NotificationDetails(
       android: AndroidNotificationDetails(
         'instant_channel',
         'الإشعارات الفورية',
-        channelDescription: 'إشعارات فورية للتطبيق',
+        channelDescription: 'إشعارات تظهر فورًا',
         importance: Importance.high,
         priority: Priority.high,
-        showWhen: true,
         icon: '@mipmap/ic_launcher',
+        playSound: true,
+        enableVibration: true,
+        autoCancel: true,
       ),
     );
 
-    await _notifications.show(
-      id,
-      title,
-      body,
-      notificationDetails,
-      payload: payload,
-    );
+    await _notifications.show(id, title, body, details, payload: payload);
   }
 
-  // جدولة إشعار لوقت محدد
   static Future<void> scheduleNotification({
     required int id,
     required String title,
@@ -81,36 +125,46 @@ class NotificationService {
     required DateTime scheduledTime,
     String? payload,
   }) async {
-    // تحويل الوقت إلى التوقيت المحلي
-    final tz.TZDateTime tzScheduledTime = tz.TZDateTime.from(
-      scheduledTime,
-      tz.local,
-    );
+    if (scheduledTime.isBefore(DateTime.now())) {
+      print('Cannot schedule notification in the past');
+      return;
+    }
 
-    const NotificationDetails notificationDetails = NotificationDetails(
+    final tzTime = tz.TZDateTime.from(scheduledTime, tz.local);
+    const details = NotificationDetails(
       android: AndroidNotificationDetails(
         'scheduled_channel',
         'الإشعارات المجدولة',
-        channelDescription: 'إشعارات مجدولة للتطبيق',
-        importance: Importance.high,
+        channelDescription: 'إشعارات يتم إرسالها في وقت محدد',
+        importance: Importance.max,
         priority: Priority.high,
-        showWhen: true,
         icon: '@mipmap/ic_launcher',
+        playSound: true,
+        enableVibration: true,
+        enableLights: true,
+        autoCancel: true,
+        fullScreenIntent: true,
+        category: AndroidNotificationCategory.alarm,
       ),
     );
 
-    await _notifications.zonedSchedule(
-      id,
-      title,
-      body,
-      tzScheduledTime,
-      notificationDetails,
-      payload: payload,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-    );
+    try {
+      await _notifications.zonedSchedule(
+        id,
+        title,
+        body,
+        tzTime,
+        details,
+        payload: payload,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      );
+
+      await saveScheduledNotification(id, title, body, scheduledTime, payload);
+    } catch (e) {
+      print('Error scheduling notification: $e');
+    }
   }
 
-  // جدولة إشعار يومي
   static Future<void> scheduleDailyNotification({
     required int id,
     required String title,
@@ -119,72 +173,191 @@ class NotificationService {
     required int minute,
     String? payload,
   }) async {
-    const NotificationDetails notificationDetails = NotificationDetails(
+    final tzTime = _nextInstanceOfTime(hour, minute);
+    const details = NotificationDetails(
       android: AndroidNotificationDetails(
         'daily_channel',
         'الإشعارات اليومية',
-        channelDescription: 'إشعارات يومية للتطبيق',
+        channelDescription: 'إشعارات يومية في وقت معين',
         importance: Importance.high,
         priority: Priority.high,
-        showWhen: true,
         icon: '@mipmap/ic_launcher',
-      ),
-      iOS: DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
+        playSound: true,
+        enableVibration: true,
+        autoCancel: true,
       ),
     );
 
-    await _notifications.zonedSchedule(
-      id,
-      title,
-      body,
-      _nextInstanceOfTime(hour, minute),
-      notificationDetails,
-      payload: payload,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      matchDateTimeComponents: DateTimeComponents.time,
-    );
+    try {
+      await _notifications.zonedSchedule(
+        id,
+        title,
+        body,
+        tzTime,
+        details,
+        payload: payload,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        matchDateTimeComponents: DateTimeComponents.time,
+      );
+    } catch (e) {
+      print('Error scheduling daily notification: $e');
+    }
   }
 
-  // حساب الوقت التالي للإشعار اليومي
   static tz.TZDateTime _nextInstanceOfTime(int hour, int minute) {
-    final tz.TZDateTime now = tz.TZDateTime.now(tz.local);
-    tz.TZDateTime scheduledDate = tz.TZDateTime(
+    final now = tz.TZDateTime.now(tz.local);
+    var scheduled = tz.TZDateTime(
       tz.local,
       now.year,
       now.month,
       now.day,
       hour,
       minute,
-      0,
     );
 
-    if (scheduledDate.isBefore(now)) {
-      scheduledDate = scheduledDate.add(const Duration(days: 1));
+    if (scheduled.isBefore(now)) {
+      scheduled = scheduled.add(Duration(days: 1));
     }
 
-    return scheduledDate;
+    return scheduled;
   }
 
-  // إلغاء إشعار محدد
+  static Future<void> saveScheduledNotification(
+    int id,
+    String title,
+    String body,
+    DateTime scheduledTime,
+    String? payload,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    final notifications = prefs.getStringList('scheduled_notifications') ?? [];
+
+    final notificationData = {
+      'id': id,
+      'title': title,
+      'body': body,
+      'scheduledTime': scheduledTime.millisecondsSinceEpoch,
+      'payload': payload ?? '',
+    };
+
+    notifications.add(notificationData.toString());
+    await prefs.setStringList('scheduled_notifications', notifications);
+  }
+
   static Future<void> cancelNotification(int id) async {
     await _notifications.cancel(id);
   }
 
-  // إلغاء جميع الإشعارات
   static Future<void> cancelAllNotifications() async {
     await _notifications.cancelAll();
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('scheduled_notifications');
   }
 
-  // الحصول على الإشعارات المعلقة
-  static Future<List<PendingNotificationRequest>> getPendingNotifications() async {
-    return await _notifications.pendingNotificationRequests();
+  static Future<List<PendingNotificationRequest>>
+  getPendingNotifications() async {
+    final pending = await _notifications.pendingNotificationRequests();
+
+    for (var notification in pending) {
+      print('   - ID: ${notification.id}, Title: ${notification.title}');
+    }
+
+    return pending;
+  }
+
+  static Future<void> rescheduleNotificationsFromStorage() async {
+    try {
+      final settings = await SettingsManager.loadSettings();
+      final startDate = settings['startDate'];
+      final workDays = settings['workDays'];
+      final offDays = settings['offDays'];
+
+      if (startDate != null && workDays != null && offDays != null) {
+        await scheduleEndOfOffNotification(
+          id: 100,
+          startDate: startDate,
+          workDays: workDays,
+          offDays: offDays,
+          title: "استعد",
+          body: "بكرة شغل جهز دماغك من دلوقتي",
+        );
+      }
+    } catch (e) {
+      print('Error rescheduling notifications: $e');
+    }
+  }
+
+  static Future<void> scheduleEndOfOffNotification({
+    required int id,
+    required DateTime startDate,
+    required int workDays,
+    required int offDays,
+    required String title,
+    required String body,
+  }) async {
+    final now = DateTime.now();
+    int cycleLength = workDays + offDays;
+    int daysSinceStart = now.difference(startDate).inDays;
+    int completedCycles = (daysSinceStart / cycleLength).floor();
+
+    DateTime currentCycleStart = startDate.add(
+      Duration(days: completedCycles * cycleLength),
+    );
+    DateTime offStart = currentCycleStart.add(Duration(days: workDays));
+
+    if (offStart.isBefore(now)) {
+      offStart = offStart.add(Duration(days: cycleLength));
+    }
+
+    final reminders = [
+      Duration(hours: 24),
+      Duration(hours: 12),
+      Duration(hours: 6),
+    ];
+
+    final titles = [
+      "قربت الإجازة",
+      "الإجازة على الأبواب",
+      "يلا جهز نفسك خلاص فاضل ساعات",
+    ];
+
+    final bodies = [
+      "باقي يوم واحد على الإجازة خطط لوقتك صح",
+      "باقي 12 ساعة وتبدأ الإجازة",
+      "فاضل 6 ساعات ويبدأ أجمل وقت في الأسبوع",
+    ];
+
+    for (int i = 0; i < reminders.length; i++) {
+      final notifyTime = offStart.subtract(reminders[i]);
+
+      if (notifyTime.isAfter(now)) {
+        await scheduleNotification(
+          id: id + i,
+          title: titles[i],
+          body: bodies[i],
+          scheduledTime: notifyTime,
+          payload: 'pre_off_alert_${i + 1}',
+        );
+      } else {
+        print('Skipping past notification ${i + 1}');
+      }
+    }
+  }
+
+  static Future<void> debugNotifications() async {
+    final pending = await getPendingNotifications();
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getStringList('scheduled_notifications') ?? [];
+
+    if (Platform.isAndroid) {
+      final notificationStatus = await Permission.notification.status;
+      final alarmStatus = await Permission.scheduleExactAlarm.status;
+      final batteryStatus = await Permission.ignoreBatteryOptimizations.status;
+    }
   }
 }
 
-// مثال على الاستخدام
 class NotificationExample extends StatefulWidget {
   @override
   _NotificationExampleState createState() => _NotificationExampleState();
@@ -194,69 +367,45 @@ class _NotificationExampleState extends State<NotificationExample> {
   @override
   void initState() {
     super.initState();
-    // تهيئة الإشعارات عند بدء التطبيق
     NotificationService.initialize();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('مثال على الإشعارات المحلية'),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ElevatedButton(
-              onPressed: () {
-                NotificationService.showInstantNotification(
-                  id: 1,
-                  title: 'إشعار فوري',
-                  body: 'هذا إشعار فوري للاختبار',
-                  payload: 'instant_notification',
-                );
-              },
-              child: Text('إرسال إشعار فوري'),
-            ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                NotificationService.scheduleNotification(
-                  id: 2,
-                  title: 'إشعار مجدول',
-                  body: 'هذا إشعار مجدول بعد 5 ثواني',
-                  scheduledTime: DateTime.now().add(Duration(seconds: 5)),
-                  payload: 'scheduled_notification',
-                );
-              },
-              child: Text('جدولة إشعار بعد 5 ثواني'),
-            ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                NotificationService.scheduleDailyNotification(
-                  id: 3,
-                  title: 'إشعار يومي',
-                  body: 'هذا إشعار يومي في الساعة 9:00 صباحاً',
-                  hour: 9,
-                  minute: 0,
-                  payload: 'daily_notification',
-                );
-              },
-              child: Text('جدولة إشعار يومي'),
-            ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                NotificationService.cancelAllNotifications();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('تم إلغاء جميع الإشعارات')),
-                );
-              },
-              child: Text('إلغاء جميع الإشعارات'),
-            ),
-          ],
+      appBar: AppBar(title: Text('اختبار الإشعارات')),
+      body: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              ElevatedButton(
+                onPressed: () {
+                  NotificationService.showInstantNotification(
+                    id: 1,
+                    title: 'إشعار فوري',
+                    body: 'هذا إشعار فوري للاختبار',
+                    payload: 'instant_notification',
+                  );
+                },
+                child: Text('إرسال إشعار فوري'),
+              ),
+              SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () async {
+                  await NotificationService.scheduleNotification(
+                    id: 999,
+                    title: 'اختبار',
+                    body: 'هيظهر بعد 10 ثواني',
+                    scheduledTime: DateTime.now().add(Duration(seconds: 10)),
+                  );
+                },
+                child: Text('اختبار إشعار بعد 10 ثواني'),
+              ),
+            ],
+          ),
         ),
       ),
     );
