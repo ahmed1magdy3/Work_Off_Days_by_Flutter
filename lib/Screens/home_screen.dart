@@ -1,3 +1,4 @@
+import 'package:easy_notify/easy_notify.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'notifications.dart';
@@ -26,8 +27,7 @@ class HomeScreen extends StatelessWidget {
             const SizedBox(height: 32),
             ElevatedButton(
               onPressed: () {
-                Navigator.push(
-                  context,
+                Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => NotificationExample()),
                 );
               },
