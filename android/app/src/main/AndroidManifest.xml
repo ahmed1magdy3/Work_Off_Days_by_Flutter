@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<!--    package="com.example.app">-->
+
     <!-- الصلاحيات الأساسية للإشعارات -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -12,7 +14,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
     <application
-        android:name="${applicationName}"
+         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:label="الجناب">
 
@@ -33,24 +35,26 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- إضافة intent-filter للتعامل مع الإشعارات -->
+            <!-- فلتر الإشعارات -->
             <intent-filter>
                 <action android:name="FLUTTER_NOTIFICATION_CLICK" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
 
-        <!-- الـ receiver الأصلي بتاعك -->
+        <!-- Receiver لاسترجاع الإشعارات بعد إعادة التشغيل -->
         <receiver
             android:name=".AlarmBootReceiver"
             android:enabled="true"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>
         </receiver>
 
-        <!-- إضافة receivers للإشعارات -->
+        <!-- Receivers الخاصة بمكتبة flutter_local_notifications -->
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
             android:enabled="true"
@@ -67,6 +71,12 @@
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
             android:enabled="true"
             android:exported="true" />
+
+        <!-- إعداد الـ WorkManager أو AlarmManager لتشغيل الإشعارات -->
+        <service
+            android:name="com.dexterous.flutterlocalnotifications.ForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync|location|connectedDevice" />
 
         <meta-data
             android:name="flutterEmbedding"

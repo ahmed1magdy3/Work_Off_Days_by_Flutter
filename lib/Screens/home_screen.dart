@@ -1,7 +1,5 @@
-import 'package:easy_notify/easy_notify.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'notifications.dart';
 import 'settings_screen.dart';
 import 'status_screen.dart';
 import 'predict_screen.dart';
@@ -23,16 +21,49 @@ class HomeScreen extends StatelessWidget {
           children: [
             const _WelcomeSection(),
             const SizedBox(height: 48),
+
+            // ---------------- عرض الله الوطن مكتب الحاسب مع أيقونات ----------------
+            Wrap(
+              alignment: WrapAlignment.center,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                const Text(
+                  'اللّٰه',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Icon(Icons.mosque, color: Colors.green),
+
+                const Text(
+                  'الوطن',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Text(
+                  '🇪🇬',
+                  style: TextStyle(fontSize: 22),
+                ),
+                const Text(
+                  'مكتب الحاسب',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Icon(Icons.computer, color: Colors.blue),
+              ],
+            ),
+
+
+            const SizedBox(height: 32),
             _MainButtons(onNavigate: _navigateTo),
             const SizedBox(height: 32),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => NotificationExample()),
-                );
-              },
-              child: const Text('تحديث الإشعارات'),
-            ),
             const Spacer(),
             const _SignatureFooter(),
           ],
@@ -93,7 +124,6 @@ class _WelcomeSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        //Icon(Icons.calendar_today, size: 80, color: Colors.blue.shade600),
         const SizedBox(height: 16),
         Text(
           _getGreeting(),
